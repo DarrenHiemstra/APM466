@@ -5,31 +5,31 @@ import pandas as pd
 
 
 
-def calculate_ytm(bond_info_df, dirty_prices_df):
+def calculate_yield_to_maturity(bond_info_df, dirty_prices_df):
     """
-    Calculate Yield to Maturity (YTM) for each bond based on dirty prices.
+    Determine the Yield to Maturity (YTM) for each bond using their dirty prices.
 
     Parameters:
-    - bond_info_df: DataFrame with bond information (Coupon, Maturity Date, etc.).
-    - dirty_prices_df: DataFrame with dirty prices for each bond.
+    - bond_info_df: DataFrame containing bond details (Coupon, Maturity Date, etc.).
+    - dirty_prices_df: DataFrame with dirty prices corresponding to each bond.
 
     Returns:
-    - ytm_df: DataFrame with YTM values for each bond and date.
+    - ytm_df: DataFrame presenting YTM values for each bond and date.
     """
 
     def solve_ytm_equation(time_to_coupon, cash_flows, dirty_price):
         """
-        Solve the YTM equation using Newton's method.
+        Utilize Newton's method to solve the YTM equation.
 
         Parameters:
-        - time_to_coupon: Array of time to cash flows.
+        - time_to_coupon: Array representing time to cash flows.
         - cash_flows: Array of bond cash flows.
         - dirty_price: Current dirty price.
 
         Returns:
         - YTM solution.
         """
-        initial_guess = 0.05  # Adjust this based on typical YTM values
+        initial_guess = 0.05  # Adjust based on typical YTM values
 
         def ytm_formula(ytm):
             present_value = np.sum(cash_flows * np.exp(-ytm * time_to_coupon))
@@ -39,7 +39,7 @@ def calculate_ytm(bond_info_df, dirty_prices_df):
 
     def compute_ytm_for_bond(current_date, maturity_date, dirty_price, coupon_rate):
         """
-        Compute YTM for a single bond at a specific date.
+        Compute YTM for an individual bond at a specific date.
 
         Parameters:
         - current_date: Date for YTM calculation.
@@ -164,7 +164,7 @@ extra_df = pd.DataFrame({'Coupon': coupons, 'Maturity Date' : maturities}, index
 
 #dirty_prices_df = calculate_dirty_price(extra_df, bond_prices_df)
 
-df = calculate_ytm(extra_df, bond_prices_df )
+df = calculate_yield_to_maturity(extra_df, bond_prices_df )
 
 
 #QUESTION 5
