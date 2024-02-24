@@ -3,7 +3,30 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
+def compute_dirty_price(bond_info_df, clean_prices):
+    """
+    Calculate the dirty price of bonds using their clean prices.
 
+    Parameters:
+    - bond_info_df: DataFrame with additional bond details (Coupon, Maturity Date, etc.).
+    - clean_prices: DataFrame containing clean prices of bonds.
+
+    Returns:
+    - dirty_price_df: DataFrame representing the dirty prices for each bond and date.
+    """
+
+    coupon_rates = bond_info_df['Coupon']
+    last_coupon_date = pd.to_datetime('2023-09-01')
+    days_since_last_coupon = (clean_prices.columns.to_series() - last_coupon_date).dt.days
+    dirty_price_df = pd.DataFrame(index=clean_prices.index, columns=clean_prices.columns)
+
+    for current_date in clean_prices.columns:
+        days_since_last = days_since_last_coupon[current_date]
+        accrued_interests = days_since_last / 365 * coupon_rates / 2 * 100
+
+        dirty_price_df[current_date] = clean_prices[current_date].values + accrued_interests.values
+
+    return dirty_price_df
 
 def calculate_yield_to_maturity(bond_info_df, dirty_prices_df):
     """
@@ -164,7 +187,9 @@ extra_df = pd.DataFrame({'Coupon': coupons, 'Maturity Date' : maturities}, index
 
 #dirty_prices_df = calculate_dirty_price(extra_df, bond_prices_df)
 
-df = calculate_yield_to_maturity(extra_df, bond_prices_df )
+dirty_prices_df = compute_dirty_price(extra_df, bond_prices_df)
+
+df = calculate_yield_to_maturity(extra_df, dirty_prices_df )
 
 
 #QUESTION 5
