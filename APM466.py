@@ -3,103 +3,79 @@ from datetime import datetime, timedelta
 import numpy as np
 import pandas as pd
 
-def compute_dirty_price(bond_info_df, clean_prices):
+
+def calculate_dirty_prices(coupons, dates, bond_prices_df):
     """
-    Calculate the dirty price of bonds using their clean prices.
+    Calculate the dirty prices of bonds based on provided clean prices, coupon rates, and days since last coupon.
 
     Parameters:
-    - bond_info_df: DataFrame with additional bond details (Coupon, Maturity Date, etc.).
-    - clean_prices: DataFrame containing clean prices of bonds.
+    - coupons: List of bond coupon rates for each bond.
+    - dates: Array of dates for which bond prices are given.
+    - bond_prices_df: DataFrame containing clean prices for the bonds (index as bonds, columns as dates).
 
     Returns:
-    - dirty_price_df: DataFrame representing the dirty prices for each bond and date.
+    - dirty_prices_df: DataFrame representing the dirty prices for each bond and date.
     """
 
-    coupon_rates = bond_info_df['Coupon']
+    coupons_df = pd.DataFrame(coupons, index=bond_prices_df.index, columns=['Coupon'])
     last_coupon_date = pd.to_datetime('2023-09-01')
-    days_since_last_coupon = (clean_prices.columns.to_series() - last_coupon_date).dt.days
-    dirty_price_df = pd.DataFrame(index=clean_prices.index, columns=clean_prices.columns)
+    dirty_prices_df = pd.DataFrame(index=bond_prices_df.index, columns=bond_prices_df.columns)
+    days_since_last_coupon = (pd.to_datetime(bond_prices_df.columns) - last_coupon_date).days
 
-    for current_date in clean_prices.columns:
-        days_since_last = days_since_last_coupon[current_date]
-        accrued_interests = days_since_last / 365 * coupon_rates / 2 * 100
+    for bond in bond_prices_df.index:
+        coupon_rate = coupons_df.loc[bond].values
+        days_since_last = days_since_last_coupon.values
+        accrued_interest = days_since_last / 365 * coupon_rate / 2 * 100
 
-        dirty_price_df[current_date] = clean_prices[current_date].values + accrued_interests.values
+        dirty_prices_df.loc[bond] = bond_prices_df.loc[bond] + accrued_interest
 
-    return dirty_price_df
+    return dirty_prices_df
 
-def calculate_yield_to_maturity(bond_info_df, dirty_prices_df):
+
+def bond_yield_to_maturity(bond_data, price_data):
     """
-    Determine the Yield to Maturity (YTM) for each bond using their dirty prices.
+    Calculate bond Yield to Maturity (YTM) for each bond based on provided data.
 
     Parameters:
-    - bond_info_df: DataFrame containing bond details (Coupon, Maturity Date, etc.).
-    - dirty_prices_df: DataFrame with dirty prices corresponding to each bond.
+    - bond_data: DataFrame with bond details including Coupon and Maturity Date.
+    - price_data: DataFrame with bond prices, indexed by bonds and columns as dates.
 
     Returns:
-    - ytm_df: DataFrame presenting YTM values for each bond and date.
+    - ytm_results: DataFrame containing YTM values for each bond and date.
     """
 
-    def solve_ytm_equation(time_to_coupon, cash_flows, dirty_price):
-        """
-        Utilize Newton's method to solve the YTM equation.
+    ytm_results = pd.DataFrame(index=price_data.index, columns=price_data.columns)
 
-        Parameters:
-        - time_to_coupon: Array representing time to cash flows.
-        - cash_flows: Array of bond cash flows.
-        - dirty_price: Current dirty price.
+    initial_guess = 0.05  # Adjustable initial guess for YTM calculation
 
-        Returns:
-        - YTM solution.
-        """
-        initial_guess = 0.05  # Adjust based on typical YTM values
-
-        def ytm_formula(ytm):
-            present_value = np.sum(cash_flows * np.exp(-ytm * time_to_coupon))
-            return present_value - dirty_price
-
-        return newton(ytm_formula, initial_guess)
-
-    def compute_ytm_for_bond(current_date, maturity_date, dirty_price, coupon_rate):
-        """
-        Compute YTM for an individual bond at a specific date.
-
-        Parameters:
-        - current_date: Date for YTM calculation.
-        - maturity_date: Bond maturity date.
-        - dirty_price: Current dirty price.
-        - coupon_rate: Bond coupon rate.
-
-        Returns:
-        - Tuple of time to cash flows and corresponding YTM.
-        """
-        coupon_dates = pd.date_range(start=pd.Timestamp('2024-03-01'), end=maturity_date, freq='6MS')
-        time_to_coupon = np.array((coupon_dates - current_date).days / 365)
-
-        cash_flows = [coupon_rate / 2 * 100] * len(time_to_coupon)
-        cash_flows[-1] += 100
-        cash_flows = np.array(cash_flows)
-
-        ytm = solve_ytm_equation(time_to_coupon, cash_flows, dirty_price)
-        return time_to_coupon, ytm
-
-    ytm_df = pd.DataFrame(index=dirty_prices_df.index, columns=dirty_prices_df.columns)
-
-    for bond in dirty_prices_df.index:
+    for bond in price_data.index:
         ytm_values = []
 
-        coupon_rate = bond_info_df.loc[bond]['Coupon']
-        maturity_date = bond_info_df.loc[bond]['Maturity Date']
-        dirty_prices = dirty_prices_df.loc[bond].values
+        bond_coupon = bond_data.loc[bond]['Coupon']
+        maturity_date = bond_data.loc[bond]['Maturity Date']
+        price_values = price_data.loc[bond].values
 
-        for current_date in dirty_prices_df.columns:
-            dirty_price = dirty_prices[dirty_prices_df.columns.get_loc(current_date)]
-            time_to_coupon, ytm = compute_ytm_for_bond(current_date, maturity_date, dirty_price, coupon_rate)
-            ytm_values.append(ytm)
+        for current_date in price_data.columns:
+            dirty_price = price_values[price_data.columns.get_loc(current_date)]
 
-        ytm_df.loc[bond] = ytm_values
+            coupon_dates = pd.date_range(start=pd.Timestamp('2024-03-01'), end=maturity_date, freq='6MS')
+            time_to_coupon = np.array((coupon_dates - pd.Timestamp(current_date)).days / 365)
 
-    return ytm_df
+            cash_flows = [bond_coupon / 2 * 100] * len(time_to_coupon)
+            cash_flows[-1] += 100
+            cash_flows = np.array(cash_flows)
+
+            def calculate_present_value(ytm):
+                present_value = np.sum(cash_flows * np.exp(-ytm * time_to_coupon))
+                return present_value - dirty_price
+
+            ytm_solution = newton(calculate_present_value, initial_guess)
+            ytm_values.append(ytm_solution)
+
+        ytm_results.loc[bond] = ytm_values
+
+    return ytm_results
+
 
 #Calculates days
 days_list = [datetime(2024, 1, 8) + timedelta(days=i) for i in range(5)]+ [datetime(2024, 1, 15) + timedelta(days=i) for i in range(5)]
@@ -185,11 +161,14 @@ forward_df=pd.DataFrame(forward_yields, columns = [f'Bond_{i}' for i in range(1,
 
 extra_df = pd.DataFrame({'Coupon': coupons, 'Maturity Date' : maturities}, index = bond_prices_df.index)
 
+
 #dirty_prices_df = calculate_dirty_price(extra_df, bond_prices_df)
 
-dirty_prices_df = compute_dirty_price(extra_df, bond_prices_df)
+dirty_prices_df = calculate_dirty_prices(coupons, days_list, bond_prices_df)
 
-df = calculate_yield_to_maturity(extra_df, dirty_prices_df )
+dirty_price_df_T = calculate_dirty_prices(coupons, days_list, bond_prices_df).T
+
+df = bond_yield_to_maturity(extra_df, dirty_prices_df )
 
 
 #QUESTION 5
